@@ -1,0 +1,66 @@
+---
+title: "Dart Frog Batesian Mimicry"
+author: "Danielle Marichal"
+date: "2026-11-06"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+```{r}
+#Homework was completed with my group (Alyssa, Emma, Laura, Caeden, and Megan) 
+```
+
+
+```{r}
+##1. What, if any, is their experimental design?
+#McEwen et al. captured  5 Ameerega bilinguis and 90 Allobates zaparo in Provincia de Napo, Ecuador. The frogs were housed separately and photographed against a customized cardstock background to minimize artifacts and specular reflectance. An avian visual system was modeled in order to represent visual predators of frogs. Dorsal color was characterized via the selection of 3 ROIs (anterior, posterior, & medial) into 1 discontinuous ROI which represented a single mean dorsal color per frog. A receptor-noise-limited visual discrimination model was utilized to caclulate achromatic contrast (delta L) and chromatic contrast (delta S) between the dorsal colors of each species. The researchers sought to assess the batesian mimicry seen with the two frog species. They assessed how closely the two species were in terms of dorsal color utilizing the avian visual model in ImageJ. In order to determine if color contrasts between the target species is impacted by body size, two GAMs were generated utilizing the mgcv package in R. The behavioral aspect of this study included the creation of a test arena to assess the behavior of A. zaparo based on environemntal and morphological factors. A video recorder was used to test each frogs behavior once in high light and again in low light conditions, every day. BORIS was utilized to measure the "boldness" of each frog.   
+##2. What, if any, statistical analyses did they perform?
+#Generalized linear mixed effect models, log transformation of squares/min and jumps/min, error adjustment distribution per model, "Entry Probability = binomial, Entry Latency = Gamma with log-link, log-transformed Jump/min = Gaussian, and log-transformed Squares/min = Gaussian"
+##3. What, if any, data validation techniques did they use? For example, if they used linear models, did they test for normality? 
+#Checked model assumptions using "DHARMa", "performance" packages, model inspection utilizing check_collinearity fxn through "performance" package, ANOVA from "car" to generate test statistics for each fixed effects within the model, made miltiple models if more than one effect was significant, compared addditive and interactive using ANOVA.
+##4. Are there any other techniques we’ve discussed that they used (e.g., imputation, MICE,etc.)? 
+#Huge overlap, GLMEM, logs, ANOVA
+##5. Do you have any other questions or comments about the paper?
+#I found the behavioral aspect of the study to be very interesting. I also was excited when I read they used ImageJ for analyses, I have a little experience with that software as well. I have always found batesian mimicry to be fascinating, with my favorite being Syrphid flies resembling stinging hymenopterans. Another cool one was when I found a locust borer (long horn beetle) on a patch of golden rod. My first impression of the insect was "that's a wasp" due to its coloration and pattern. However, upon closer inspection it was in fact a beetle. I picked it up to get a closer look and the locust borer "buzzed", which strongly resembled that of an angry bee or wasp. The sound and vibration was so jarring that I dropped the beetle on the ground (without harm). 
+##6. Download the dataset and perform a basic statistical analysis. If you choose the same type of analysis as them, do you get the same results? If you choose a different analysis, is it appropriate given the type of data they have?
+#We decided to replicate part of their dorsal color analyses, successfully.
+```
+
+```{r}
+library(patchwork)
+library(tidyverse)
+library(mgcv)
+library(ggplot2)
+read_csv("McEwen-etal-2025_BehaviourData.csv")
+dartfrog<-read_csv("McEwen-etal-2025_BehaviourData.csv")
+dartfrog<-dartfrog%>%select(FocalFrog,vids,SVL,DorsalColJND,DorsalLumJND)
+oneSVL<-dartfrog%>%group_by(FocalFrog)%>%slice_min(order_by = vids)
+oneSVL<-as.data.frame(oneSVL)
+#Achromatic
+ggplot(data = oneSVL)+geom_point(aes(x=SVL,y=DorsalLumJND))+ggtitle("Body Length vs. Achromatic Contrast") +theme_bw()+theme(panel.grid.major = element_blank())+theme(panel.grid.minor = element_blank())+ylab("Achromatic Contrast (Delta.L)")+xlab("Frog Length (SVL.mm)")+theme(legend.title = element_blank())+theme(legend.background = element_rect(linetype = "solid",color = "orchid"))
+#Chromatic
+ggplot(data = oneSVL)+geom_point(aes(x=SVL,y=DorsalColJND))+ggtitle("Body Length vs. Chromatic Contrast") +theme_bw()+theme(panel.grid.major = element_blank())+theme(panel.grid.minor = element_blank())+ylab("Chromatic Contrast (Delta.S)")+xlab("Frog Length (SVL.mm)")+theme(legend.title = element_blank())+theme(legend.background = element_rect(linetype = "solid",color = "navy"))
+#GAMs
+gamdorsalcol<-gam(DorsalColJND~s(SVL),data = oneSVL,family = gaussian(),method = "REML")
+gam.check(gamdorsalcol)
+summary(gamdorsalcol)
+gamdorsallum<-gam(DorsalLumJND~s(SVL),data = oneSVL,family = gaussian(),method = "REML")
+gam.check(gamdorsallum)
+summary(gamdorsallum)
+predictgamdorsalcol<-data.frame(SVL=oneSVL$SVL,DorsalColJND = predict.gam(gamdorsalcol, newdata = oneSVL))
+predictgamdorsalcol
+predictgamdorsallum<-data.frame(SVL=oneSVL$SVL,DorsalLumJND = predict.gam(gamdorsallum, newdata = oneSVL))
+predictgamdorsallum
+library(tidygam)
+#attempting graph for chromatic contrast
+chromaticplot<- ggplot(data = predictgamdorsalcol, aes(x = SVL, y = DorsalColJND)) + geom_point(data = oneSVL, aes(x = SVL, y = DorsalColJND), color = "navy", alpha = 0.5, shape = 3, size = 1) + geom_smooth(data= oneSVL, aes(x=SVL,y=DorsalColJND),method = "lm", level = 0.95, fill = "cornflowerblue", alpha = 0.5,inherit.aes = FALSE) + geom_line(color = "black", linewidth = 1) + labs(title = "Body Length vs. Chromatic Contrast",x = "SVL (mm)", y = "Chromatic contrast (dS)")+ scale_x_continuous(limits = c(0, 30), breaks = seq(0, 30, 5)) + scale_y_continuous(limits = c(0, 15), breaks = seq(0, 15, 5)) + theme_bw() + theme(axis.line = element_line(colour = "black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank()) + theme(panel.grid = element_blank()) + theme(panel.grid = element_blank()) + theme(plot.title = element_text(size=11,face = "bold",hjust = 0.5)) + theme(axis.title.y = element_text(size = 9, face = "bold")) + theme(axis.title.x = element_text(size = 9, face = "bold")) + theme(axis.text.x = element_text(size = 8, face = "bold")) + theme(axis.text.y = element_text(size = 8, face = "bold")) + theme(axis.ticks.y = element_line(linewidth = 0.7)) + theme(axis.ticks.x = element_line(linewidth = 0.7))
+#attempting graph for achromatic contrast
+plot(chromaticplot) 
+achromaticplot<- ggplot(data = predictgamdorsallum, aes(x = SVL, y = DorsalLumJND)) + geom_point(data = oneSVL, aes(x = SVL, y = DorsalLumJND), color = "darkgreen", alpha = 0.5, shape = 3, size = 1) + geom_smooth(data= oneSVL, aes(x=SVL,y=DorsalLumJND),method = "lm", level = 0.95, fill = "springgreen", alpha = 0.5,inherit.aes = FALSE) + geom_line(color = "black", linewidth = 1) + labs(title = "Body Length vs. Achromatic Contrast",x = "SVL (mm)", y = "Achromatic contrast (dL)")+ scale_x_continuous(limits = c(0, 30), breaks = seq(0, 30, 5)) + scale_y_continuous(limits = c(0, 15), breaks = seq(0, 15, 5)) + theme_bw() + theme(axis.line = element_line(colour = "black"), panel.grid.major = element_blank(), panel.grid.minor = element_blank(), panel.background = element_blank()) + theme(panel.grid = element_blank()) + theme(panel.grid = element_blank()) + theme(plot.title = element_text(size=11,face = "bold",hjust = 0.5)) + theme(axis.title.y = element_text(size = 9, face = "bold")) + theme(axis.title.x = element_text(size = 9, face = "bold")) + theme(axis.text.x = element_text(size = 8, face = "bold")) + theme(axis.text.y = element_text(size = 8, face = "bold")) + theme(axis.ticks.y = element_line(linewidth = 0.7)) + theme(axis.ticks.x = element_line(linewidth = 0.7))
+plot(achromaticplot) 
+#combining chromatic and achromatic graphs
+achrom.chrom.plot<-chromaticplot+achromaticplot+plot_layout(nrow=2)
+plot(achrom.chrom.plot)
+```
